@@ -33,3 +33,7 @@ Thumbs.db
 # Environment variables
 .env
 .env.local
+
+# Planning documents
+*PLAN.md
+LAYOUT.md
