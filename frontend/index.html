@@ -8,10 +8,83 @@
 </head>
 <body>
     <div id="app">
-        <h1>Hello Vibro!</h1>
-        <p>Context switching application</p>
+        <!-- Full view context information -->
+        <div id="context-view">
+            <div id="context-info">
+                <h2 id="context-name" contenteditable="false">Select a context</h2>
+                <div id="context-details">
+                    <!-- Notes Section -->
+                    <div class="detail-section" id="notes-section" style="display: none;">
+                        <div id="notes-list" class="notes-list"></div>
+                        <div class="add-note-group">
+                            <input type="text" id="note-input" placeholder="Add a note..." class="note-input">
+                            <button class="btn-add-note" onclick="addNote()">+ Add</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom cards for context switching -->
+        <div id="context-cards">
+            <div id="cards-container"></div>
+            <button id="add-context-btn" class="add-btn" title="Add new context">
+                <span>+</span>
+            </button>
+        </div>
+
         <div id="status"></div>
     </div>
+
+    <!-- Modal for creating/editing contexts -->
+    <div id="context-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title">Create New Context</h3>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="context-form">
+                    <div class="form-group">
+                        <label for="context-name-input">Context Name</label>
+                        <input type="text" id="context-name-input" placeholder="e.g., Work Project" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="context-color-input">Color Theme</label>
+                        <select id="context-color-input">
+                            <option value="purple">Purple (Default)</option>
+                            <option value="blue">Blue</option>
+                            <option value="green">Green</option>
+                            <option value="orange">Orange</option>
+                            <option value="red">Red</option>
+                            <option value="pink">Pink</option>
+                            <option value="teal">Teal</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="context-description-input">Description (Optional)</label>
+                        <textarea id="context-description-input" rows="3" placeholder="Brief description..."></textarea>
+                    </div>
+
+                    <!-- Notes Section -->
+                    <div class="form-group">
+                        <label>Notes</label>
+                        <div id="modal-notes-list" class="items-list"></div>
+                        <div class="add-item-group">
+                            <input type="text" id="modal-note-input" placeholder="Add a note..." style="flex: 1;">
+                            <button type="button" class="btn-add-item" onclick="addModalNote()">+ Add Note</button>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <script src="/app.js"></script>
 </body>
 </html>

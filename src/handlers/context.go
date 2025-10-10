@@ -42,13 +42,20 @@ func CreateContext(store storage.Storage) http.HandlerFunc {
 
 		// Create context
 		ctx := &models.Context{
-			ID:        uuid.New().String(),
-			Name:      req.Name,
-			Color:     req.Color,
-			Icon:      req.Icon,
-			Items:     make([]models.Item, 0),
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
+			ID:          uuid.New().String(),
+			Name:        req.Name,
+			Color:       req.Color,
+			Icon:        req.Icon,
+			Description: req.Description,
+			Items:       make([]models.Item, 0),
+			Notes:       req.Notes,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		}
+
+		// Initialize empty notes array if nil
+		if ctx.Notes == nil {
+			ctx.Notes = make([]models.Note, 0)
 		}
 
 		if err := store.CreateContext(ctx); err != nil {
@@ -97,7 +104,14 @@ func UpdateContext(store storage.Storage) http.HandlerFunc {
 		ctx.Name = req.Name
 		ctx.Color = req.Color
 		ctx.Icon = req.Icon
+		ctx.Description = req.Description
+		ctx.Notes = req.Notes
 		ctx.UpdatedAt = time.Now()
+
+		// Initialize empty notes array if nil
+		if ctx.Notes == nil {
+			ctx.Notes = make([]models.Note, 0)
+		}
 
 		if err := store.UpdateContext(ctx); err != nil {
 			utils.RespondError(w, http.StatusInternalServerError, "Failed to update context", err)

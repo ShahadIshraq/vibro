@@ -6,15 +6,23 @@ import (
 	"time"
 )
 
+// Note represents a note item with optional indentation
+type Note struct {
+	Text   string `json:"text"`
+	Indent int    `json:"indent"`
+}
+
 // Context represents a user context/workspace
 type Context struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	Color     string    `json:"color"`     // Hex color code (e.g., "#FF5733")
-	Icon      string    `json:"icon"`      // Emoji or icon identifier
-	Items     []Item    `json:"items"`     // Nested items
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	Color       string    `json:"color"`       // Color name (e.g., "purple", "blue")
+	Icon        string    `json:"icon"`        // Emoji or icon identifier
+	Description string    `json:"description"` // Optional description
+	Items       []Item    `json:"items"`       // Nested items
+	Notes       []Note    `json:"notes"`       // Simple notes
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
 // Item represents content within a context
@@ -38,16 +46,20 @@ const (
 
 // CreateContextRequest for POST /api/contexts
 type CreateContextRequest struct {
-	Name  string `json:"name"`
-	Color string `json:"color"`
-	Icon  string `json:"icon"`
+	Name        string `json:"name"`
+	Color       string `json:"color"`
+	Icon        string `json:"icon"`
+	Description string `json:"description"`
+	Notes       []Note `json:"notes"`
 }
 
 // UpdateContextRequest for PUT /api/contexts/:id
 type UpdateContextRequest struct {
-	Name  string `json:"name"`
-	Color string `json:"color"`
-	Icon  string `json:"icon"`
+	Name        string `json:"name"`
+	Color       string `json:"color"`
+	Icon        string `json:"icon"`
+	Description string `json:"description"`
+	Notes       []Note `json:"notes"`
 }
 
 // CreateItemRequest for POST /api/contexts/:id/items
@@ -86,10 +98,6 @@ func (c *Context) Validate() error {
 
 	if len(c.Name) > 100 {
 		return errors.New("context name too long (max 100 characters)")
-	}
-
-	if c.Color != "" && !isValidHexColor(c.Color) {
-		return errors.New("invalid color format (use hex: #RRGGBB)")
 	}
 
 	return nil
