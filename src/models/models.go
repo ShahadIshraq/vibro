@@ -6,10 +6,10 @@ import (
 	"time"
 )
 
-// Note represents a note item with optional indentation
+// Note represents a note item with title and content
 type Note struct {
-	Text   string `json:"text"`
-	Indent int    `json:"indent"`
+	Title   string `json:"title"`
+	Content string `json:"content"`
 }
 
 // Context represents a user context/workspace
