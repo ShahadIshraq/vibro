@@ -15,7 +15,17 @@ const colorGradients = {
     orange: 'var(--gradient-orange)',
     red: 'var(--gradient-red)',
     pink: 'var(--gradient-pink)',
-    teal: 'var(--gradient-teal)'
+    teal: 'var(--gradient-teal)',
+    indigo: 'var(--gradient-indigo)',
+    cyan: 'var(--gradient-cyan)',
+    emerald: 'var(--gradient-emerald)',
+    amber: 'var(--gradient-amber)',
+    rose: 'var(--gradient-rose)',
+    violet: 'var(--gradient-violet)',
+    lime: 'var(--gradient-lime)',
+    sky: 'var(--gradient-sky)',
+    fuchsia: 'var(--gradient-fuchsia)',
+    slate: 'var(--gradient-slate)'
 };
 
 // Initialize app on page load
@@ -148,6 +158,86 @@ function setupEventListeners() {
             contextName.blur();
         }
     });
+
+    // Setup custom color select dropdown
+    setupCustomSelect();
+}
+
+// Custom select dropdown functionality
+function setupCustomSelect() {
+    const customSelect = document.getElementById('context-color-input');
+    const trigger = customSelect.querySelector('.custom-select-trigger');
+    const options = customSelect.querySelectorAll('.custom-option');
+
+    // Toggle dropdown
+    trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        customSelect.classList.toggle('open');
+    });
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!customSelect.contains(e.target)) {
+            customSelect.classList.remove('open');
+        }
+    });
+
+    // Handle option selection
+    options.forEach(option => {
+        option.addEventListener('click', (e) => {
+            e.stopPropagation();
+
+            // Remove selected class from all options
+            options.forEach(opt => opt.classList.remove('selected'));
+
+            // Add selected class to clicked option
+            option.classList.add('selected');
+
+            // Update trigger display
+            const colorValue = option.dataset.value;
+            const colorLabel = option.querySelector('.color-label').textContent;
+            const triggerPreview = trigger.querySelector('.color-preview');
+            const triggerLabel = trigger.querySelector('.color-label');
+
+            triggerPreview.dataset.color = colorValue;
+            triggerLabel.textContent = colorLabel;
+
+            // Close dropdown
+            customSelect.classList.remove('open');
+        });
+    });
+}
+
+// Get selected color value from custom select
+function getSelectedColor() {
+    const selectedOption = document.querySelector('.custom-option.selected');
+    if (selectedOption) {
+        return selectedOption.dataset.value;
+    }
+    return 'purple'; // default
+}
+
+// Set selected color in custom select
+function setSelectedColor(colorValue) {
+    const customSelect = document.getElementById('context-color-input');
+    const trigger = customSelect.querySelector('.custom-select-trigger');
+    const options = customSelect.querySelectorAll('.custom-option');
+
+    // Remove selected class from all options
+    options.forEach(opt => opt.classList.remove('selected'));
+
+    // Find and select the option with matching value
+    const targetOption = Array.from(options).find(opt => opt.dataset.value === colorValue);
+    if (targetOption) {
+        targetOption.classList.add('selected');
+
+        const colorLabel = targetOption.querySelector('.color-label').textContent;
+        const triggerPreview = trigger.querySelector('.color-preview');
+        const triggerLabel = trigger.querySelector('.color-label');
+
+        triggerPreview.dataset.color = colorValue;
+        triggerLabel.textContent = colorLabel;
+    }
 }
 
 // Open create context modal
@@ -161,6 +251,9 @@ function openCreateContextModal() {
 
     modalTitle.textContent = 'Create New Context';
     form.reset();
+
+    // Reset custom select to default
+    setSelectedColor('purple');
 
     modal.classList.add('active');
 }
@@ -176,12 +269,11 @@ function openEditContextModal(contextId) {
     const modal = document.getElementById('context-modal');
     const modalTitle = document.getElementById('modal-title');
     const nameInput = document.getElementById('context-name-input');
-    const colorInput = document.getElementById('context-color-input');
     const descInput = document.getElementById('context-description-input');
 
     modalTitle.textContent = 'Edit Context';
     nameInput.value = context.name;
-    colorInput.value = context.color || 'purple';
+    setSelectedColor(context.color || 'purple');
     descInput.value = context.description || '';
 
     modal.classList.add('active');
@@ -200,7 +292,6 @@ async function handleContextFormSubmit(e) {
     e.preventDefault();
 
     const nameInput = document.getElementById('context-name-input');
-    const colorInput = document.getElementById('context-color-input');
     const descInput = document.getElementById('context-description-input');
 
     // If editing, preserve existing notes; if creating, start with empty array
@@ -208,7 +299,7 @@ async function handleContextFormSubmit(e) {
 
     const contextData = {
         name: nameInput.value.trim(),
-        color: colorInput.value,
+        color: getSelectedColor(),
         description: descInput.value.trim(),
         notes: context ? context.notes || [] : []
     };

@@ -15,8 +15,8 @@ func ValidateCreateContext(req *models.CreateContextRequest) error {
 		return errors.New("context name too long (max 100 characters)")
 	}
 
-	if req.Color != "" && !isValidHexColor(req.Color) {
-		return errors.New("invalid color format (use hex: #RRGGBB)")
+	if req.Color != "" && !isValidColor(req.Color) {
+		return errors.New("invalid color (must be a valid color name or hex format)")
 	}
 
 	return nil
@@ -34,6 +34,37 @@ func ValidateCreateItem(req *models.CreateItemRequest) error {
 	}
 
 	return nil
+}
+
+func isValidColor(color string) bool {
+	// Valid color names
+	validColorNames := map[string]bool{
+		"purple":  true,
+		"blue":    true,
+		"green":   true,
+		"orange":  true,
+		"red":     true,
+		"pink":    true,
+		"teal":    true,
+		"indigo":  true,
+		"cyan":    true,
+		"emerald": true,
+		"amber":   true,
+		"rose":    true,
+		"violet":  true,
+		"lime":    true,
+		"sky":     true,
+		"fuchsia": true,
+		"slate":   true,
+	}
+
+	// Check if it's a valid color name
+	if validColorNames[strings.ToLower(color)] {
+		return true
+	}
+
+	// Check if it's a valid hex color
+	return isValidHexColor(color)
 }
 
 func isValidHexColor(color string) bool {
