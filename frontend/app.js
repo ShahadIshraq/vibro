@@ -133,6 +133,9 @@ function setupEventListeners() {
     const contextForm = document.getElementById('context-form');
     contextForm.addEventListener('submit', handleContextFormSubmit);
 
+    const deleteBtn = document.getElementById('delete-context-btn');
+    deleteBtn.addEventListener('click', handleDeleteContext);
+
     // Close modal when clicking outside
     const modal = document.getElementById('context-modal');
     modal.addEventListener('click', (e) => {
@@ -248,9 +251,13 @@ function openCreateContextModal() {
     const modal = document.getElementById('context-modal');
     const modalTitle = document.getElementById('modal-title');
     const form = document.getElementById('context-form');
+    const deleteBtn = document.getElementById('delete-context-btn');
 
     modalTitle.textContent = 'Create New Context';
     form.reset();
+
+    // Hide delete button in create mode
+    deleteBtn.style.display = 'none';
 
     // Reset custom select to default
     setSelectedColor('purple');
@@ -270,11 +277,15 @@ function openEditContextModal(contextId) {
     const modalTitle = document.getElementById('modal-title');
     const nameInput = document.getElementById('context-name-input');
     const descInput = document.getElementById('context-description-input');
+    const deleteBtn = document.getElementById('delete-context-btn');
 
     modalTitle.textContent = 'Edit Context';
     nameInput.value = context.name;
     setSelectedColor(context.color || 'purple');
     descInput.value = context.description || '';
+
+    // Show delete button in edit mode
+    deleteBtn.style.display = 'block';
 
     modal.classList.add('active');
 }
@@ -345,6 +356,56 @@ async function handleContextFormSubmit(e) {
         } else {
             const error = await response.json();
             throw new Error(error.message || 'Failed to save context');
+        }
+    } catch (error) {
+        updateSyncStatus('error', error.message);
+    }
+}
+
+// Handle delete context
+async function handleDeleteContext() {
+    if (!editingContextId) return;
+
+    const context = contexts.find(c => c.id === editingContextId);
+    if (!context) return;
+
+    // Confirm deletion
+    const confirmed = confirm(`Are you sure you want to delete "${context.name}"? This action cannot be undone.`);
+    if (!confirmed) return;
+
+    try {
+        updateSyncStatus('syncing');
+
+        const response = await fetch(`/api/contexts/${editingContextId}`, {
+            method: 'DELETE'
+        });
+
+        if (response.ok) {
+            // Remove context from array
+            const index = contexts.findIndex(c => c.id === editingContextId);
+            if (index !== -1) {
+                contexts.splice(index, 1);
+            }
+
+            closeModal();
+            renderContextCards();
+
+            // Select first available context or clear view
+            if (contexts.length > 0) {
+                selectContext(contexts[0].id);
+            } else {
+                currentContextId = null;
+                const contextView = document.getElementById('context-view');
+                const contextName = document.getElementById('context-name');
+                contextName.textContent = 'Select a context';
+                contextView.style.background = colorGradients.purple;
+                document.getElementById('notes-section').style.display = 'none';
+            }
+
+            updateSyncStatus('synced');
+        } else {
+            const error = await response.json();
+            throw new Error(error.message || 'Failed to delete context');
         }
     } catch (error) {
         updateSyncStatus('error', error.message);

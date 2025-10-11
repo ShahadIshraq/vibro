@@ -829,6 +829,18 @@ body {
     background: #dee2e6;
 }
 
+.btn-danger {
+    background: linear-gradient(135deg, #fc8181 0%, #e53e3e 100%);
+    color: white;
+    box-shadow: 0 4px 12px rgba(229, 62, 62, 0.3);
+}
+
+.btn-danger:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(229, 62, 62, 0.4);
+    background: linear-gradient(135deg, #f56565 0%, #c53030 100%);
+}
+
 /* Items list (for paths and env vars) */
 .items-list {
     margin-bottom: 12px;
