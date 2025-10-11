@@ -57,7 +57,7 @@ body {
 }
 
 #context-info {
-    max-width: 800px;
+    max-width: 1400px;
     width: 100%;
     position: relative;
     z-index: 1;
@@ -106,10 +106,11 @@ body {
 /* Detail sections for inline editing */
 .detail-section {
     margin-top: 30px;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    padding: 20px;
-    backdrop-filter: blur(10px);
+    background: transparent;
+    border-radius: 0;
+    padding: 0;
+    backdrop-filter: none;
+    width: 100%;
 }
 
 .detail-section h3 {
@@ -387,37 +388,140 @@ body {
     transform: rotate(90deg);
 }
 
-/* Status message */
-#status {
-    padding: 12px 20px;
-    border-radius: 8px;
-    font-weight: 500;
-    margin: 0;
-    font-size: 0.9rem;
-    text-align: center;
-    transition: all 0.3s ease;
+/* Sync status indicator */
+.sync-status {
     position: fixed;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
+    top: 20px;
+    right: 20px;
     z-index: 1001;
-    min-width: 300px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px 8px 12px;
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 20px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1),
+                inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: default;
+    user-select: none;
+}
+
+.sync-status:hover {
+    background: rgba(255, 255, 255, 0.2);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.15),
+                inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.sync-status.just-synced {
+    animation: syncPulse 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes syncPulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.03);
+        box-shadow: 0 6px 28px rgba(102, 234, 156, 0.4),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+    }
+}
+
+.sync-content {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+}
+
+.sync-status .sync-icon {
+    color: rgba(255, 255, 255, 0.95);
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+    transition: opacity 0.3s ease;
+    flex-shrink: 0;
+}
+
+.sync-status.syncing .sync-icon {
+    animation: rotate 1s linear infinite;
+    opacity: 1;
+}
+
+.sync-status.synced .sync-icon {
+    opacity: 0;
     display: none;
 }
 
-#status.success {
-    display: block;
-    background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
-    color: #155724;
-    border-left: 4px solid #28a745;
+.sync-status.error .sync-icon {
+    color: rgba(255, 100, 100, 0.95);
+    opacity: 1;
 }
 
-#status.error {
+@keyframes rotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.sync-status .sync-text {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.95);
+    letter-spacing: 0.01em;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+    line-height: 1.2;
+}
+
+.sync-status.error .sync-text {
+    color: rgba(255, 100, 100, 0.95);
+}
+
+.sync-time {
+    font-size: 0.6875rem;
+    color: rgba(255, 255, 255, 0.65);
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+    line-height: 1.2;
+}
+
+.sync-checkmark {
+    color: rgba(140, 255, 180, 1);
+    filter: drop-shadow(0 1px 4px rgba(140, 255, 180, 0.5));
+    flex-shrink: 0;
+    opacity: 0;
+    transform: scale(0.5);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: none;
+}
+
+.sync-status.synced .sync-checkmark {
     display: block;
-    background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
-    color: #721c24;
-    border-left: 4px solid #dc3545;
+    opacity: 1;
+    transform: scale(1);
+}
+
+.sync-status.just-synced .sync-checkmark {
+    animation: checkPop 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sync-status.syncing .sync-checkmark {
+    display: none;
+}
+
+@keyframes checkPop {
+    0% {
+        opacity: 0;
+        transform: scale(0) rotate(-20deg);
+    }
+    60% {
+        transform: scale(1.15) rotate(3deg);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1) rotate(0deg);
+    }
 }
 
 /* Modal styles */
@@ -719,158 +823,104 @@ body {
     background: #a0aec0;
 }
 
-/* Notes styling */
+/* Notes styling - Grid layout */
 .notes-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 24px;
     margin-bottom: 16px;
+    width: 100%;
 }
 
-.note-item-wrapper {
-    display: flex;
-    align-items: center;
-    margin-bottom: 8px;
-}
-
-.note-tree,
-.note-tree-modal {
-    display: flex;
-    align-items: center;
-    flex-shrink: 0;
-}
-
-.tree-indent {
-    display: inline-block;
-    width: 24px;
-    height: 1px;
+.note-box {
     position: relative;
-    margin-right: 2px;
-}
-
-.tree-indent::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: -10px;
-    bottom: -10px;
-    width: 2px;
-    background: rgba(255, 255, 255, 0.3);
-}
-
-.tree-branch {
-    display: inline-block;
-    color: rgba(255, 255, 255, 0.5);
-    font-family: monospace;
-    font-size: 0.9em;
-    margin-right: 6px;
-    line-height: 1;
-}
-
-.note-item,
-.note-item-inline {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 12px;
     background: rgba(255, 255, 255, 0.15);
-    border-radius: 8px;
+    border-radius: 16px;
+    padding: 20px;
     transition: all 0.2s ease;
-    flex: 1;
-}
-
-.note-item:hover,
-.note-item-inline:hover {
-    background: rgba(255, 255, 255, 0.2);
-}
-
-.note-text,
-.note-text-inline {
-    flex: 1;
-    color: white;
-    word-break: break-word;
-}
-
-/* Modal tree styling (dark background) */
-.note-tree-modal .tree-indent::before {
-    background: rgba(0, 0, 0, 0.2);
-}
-
-.note-tree-modal .tree-branch {
-    color: rgba(0, 0, 0, 0.4);
-}
-
-.btn-indent,
-.btn-indent-inline {
-    background: rgba(255, 255, 255, 0.2);
-    border: none;
-    color: white;
-    font-size: 1rem;
-    cursor: pointer;
-    width: 28px;
-    height: 28px;
     display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 6px;
-    transition: all 0.2s ease;
-    flex-shrink: 0;
-    font-weight: bold;
+    flex-direction: column;
+    min-height: 200px;
+    backdrop-filter: blur(10px);
+    cursor: grab;
 }
 
-.btn-indent:hover:not(:disabled),
-.btn-indent-inline:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.3);
+.note-box:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+}
+
+.note-box.dragging {
+    opacity: 0.5;
+    cursor: grabbing;
     transform: scale(1.05);
 }
 
-.btn-indent:disabled,
-.btn-indent-inline:disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
+.note-box.drag-over {
+    border: 2px solid rgba(255, 255, 255, 0.6);
+    background: rgba(255, 255, 255, 0.25);
 }
 
-.add-note-group {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-}
-
-.note-input {
-    flex: 1;
-    padding: 10px 14px;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    border-radius: 8px;
-    font-size: 0.95rem;
-    font-family: inherit;
-    background: rgba(255, 255, 255, 0.15);
+.note-title {
+    font-size: 1.2rem;
+    font-weight: 700;
     color: white;
-    transition: all 0.2s ease;
+    margin-bottom: 12px;
+    background: transparent;
+    border: none;
+    outline: none;
+    font-family: inherit;
 }
 
-.note-input::placeholder {
+.note-title::placeholder {
     color: rgba(255, 255, 255, 0.6);
 }
 
-.note-input:focus {
+.note-textarea {
+    width: 100%;
+    flex: 1;
+    min-height: 100px;
+    background: transparent;
+    border: none;
+    color: white;
+    font-size: 0.95rem;
+    font-family: inherit;
+    line-height: 1.6;
+    resize: none;
     outline: none;
-    border-color: rgba(255, 255, 255, 0.6);
-    background: rgba(255, 255, 255, 0.2);
 }
 
-.btn-add-note {
-    padding: 10px 20px;
-    background: rgba(255, 255, 255, 0.25);
-    color: white;
-    border: 2px solid rgba(255, 255, 255, 0.4);
-    border-radius: 8px;
-    font-size: 0.9rem;
+.note-textarea::placeholder {
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.note-box .btn-remove-inline {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    z-index: 10;
+}
+
+.add-note-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: 2px dashed rgba(255, 255, 255, 0.3);
+    border-radius: 16px;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 1rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s ease;
-    white-space: nowrap;
     font-family: inherit;
+    min-height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-.btn-add-note:hover {
-    background: rgba(255, 255, 255, 0.35);
-    border-color: rgba(255, 255, 255, 0.6);
-    transform: translateY(-1px);
+.add-note-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.5);
+    color: white;
+    transform: translateY(-2px);
 }

@@ -3,7 +3,9 @@ let currentContextId = null;
 let contexts = [];
 let isEditMode = false;
 let editingContextId = null;
-let currentNotes = [];
+let lastSyncTime = null;
+let syncStartTime = null;
+let pendingSyncComplete = null;
 
 // Color gradient mapping
 const colorGradients = {
@@ -24,29 +26,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // Load contexts from API
 async function loadContexts() {
-    const statusDiv = document.getElementById('status');
-
     try {
         const response = await fetch('/api/contexts');
 
         if (response.ok) {
             contexts = await response.json();
-            // Don't show success message on initial load
-            statusDiv.textContent = '';
-            statusDiv.className = '';
-
             renderContextCards();
 
             // Select first context if available
             if (contexts.length > 0) {
                 selectContext(contexts[0].id);
             }
+
+            updateSyncStatus('synced');
         } else {
             throw new Error(`HTTP ${response.status}`);
         }
     } catch (error) {
-        statusDiv.textContent = `✗ Backend connection failed: ${error.message}`;
-        statusDiv.className = 'error';
+        updateSyncStatus('error', `Backend connection failed: ${error.message}`);
     }
 }
 
@@ -157,7 +154,6 @@ function setupEventListeners() {
 function openCreateContextModal() {
     isEditMode = false;
     editingContextId = null;
-    currentNotes = [];
 
     const modal = document.getElementById('context-modal');
     const modalTitle = document.getElementById('modal-title');
@@ -165,7 +161,6 @@ function openCreateContextModal() {
 
     modalTitle.textContent = 'Create New Context';
     form.reset();
-    renderModalNotesList();
 
     modal.classList.add('active');
 }
@@ -178,8 +173,6 @@ function openEditContextModal(contextId) {
     const context = contexts.find(c => c.id === contextId);
     if (!context) return;
 
-    currentNotes = [...(context.notes || [])];
-
     const modal = document.getElementById('context-modal');
     const modalTitle = document.getElementById('modal-title');
     const nameInput = document.getElementById('context-name-input');
@@ -190,8 +183,6 @@ function openEditContextModal(contextId) {
     nameInput.value = context.name;
     colorInput.value = context.color || 'purple';
     descInput.value = context.description || '';
-
-    renderModalNotesList();
 
     modal.classList.add('active');
 }
@@ -212,11 +203,14 @@ async function handleContextFormSubmit(e) {
     const colorInput = document.getElementById('context-color-input');
     const descInput = document.getElementById('context-description-input');
 
+    // If editing, preserve existing notes; if creating, start with empty array
+    const context = isEditMode && editingContextId ? contexts.find(c => c.id === editingContextId) : null;
+
     const contextData = {
         name: nameInput.value.trim(),
         color: colorInput.value,
         description: descInput.value.trim(),
-        notes: currentNotes
+        notes: context ? context.notes || [] : []
     };
 
     try {
@@ -256,28 +250,117 @@ async function handleContextFormSubmit(e) {
             selectContext(result.id);
             closeModal();
 
-            showStatus(`Context ${isEditMode ? 'updated' : 'created'} successfully!`, 'success');
+            updateSyncStatus('synced');
         } else {
             const error = await response.json();
             throw new Error(error.message || 'Failed to save context');
         }
     } catch (error) {
-        showStatus(`Error: ${error.message}`, 'error');
+        updateSyncStatus('error', error.message);
     }
 }
 
-// Show status message
-function showStatus(message, type) {
-    const statusDiv = document.getElementById('status');
-    statusDiv.textContent = message;
-    statusDiv.className = type;
+// Update sync status indicator
+function updateSyncStatus(state, errorMessage = '') {
+    const syncStatus = document.getElementById('sync-status');
+    const syncText = document.getElementById('sync-text');
+    const syncTime = document.getElementById('sync-time');
 
-    // Auto-hide after 3 seconds
-    setTimeout(() => {
-        statusDiv.textContent = '';
-        statusDiv.className = '';
-    }, 3000);
+    // Update based on state
+    switch(state) {
+        case 'syncing':
+            // Cancel any pending sync complete
+            if (pendingSyncComplete) {
+                clearTimeout(pendingSyncComplete);
+                pendingSyncComplete = null;
+            }
+
+            // Record when sync started
+            syncStartTime = Date.now();
+
+            // Remove all state classes
+            syncStatus.classList.remove('synced', 'syncing', 'error', 'just-synced');
+
+            syncStatus.classList.add('syncing');
+            syncText.textContent = 'Syncing...';
+            syncTime.textContent = 'Updating...';
+            break;
+
+        case 'synced':
+            const completeSyncTransition = () => {
+                syncStatus.classList.remove('synced', 'syncing', 'error', 'just-synced');
+                syncStatus.classList.add('synced');
+                syncText.textContent = 'Synced';
+                lastSyncTime = new Date();
+                updateSyncTime();
+
+                // Add attention-grabbing animation
+                syncStatus.classList.add('just-synced');
+
+                // Remove the animation class after it completes
+                setTimeout(() => {
+                    syncStatus.classList.remove('just-synced');
+                }, 2000);
+            };
+
+            // Ensure minimum 1 second of syncing state
+            if (syncStartTime) {
+                const elapsed = Date.now() - syncStartTime;
+                const minSyncDuration = 1000; // 1 second minimum
+
+                if (elapsed < minSyncDuration) {
+                    // Wait for remaining time
+                    pendingSyncComplete = setTimeout(() => {
+                        completeSyncTransition();
+                        pendingSyncComplete = null;
+                    }, minSyncDuration - elapsed);
+                } else {
+                    completeSyncTransition();
+                }
+            } else {
+                completeSyncTransition();
+            }
+            break;
+
+        case 'error':
+            // Cancel any pending sync complete
+            if (pendingSyncComplete) {
+                clearTimeout(pendingSyncComplete);
+                pendingSyncComplete = null;
+            }
+
+            syncStatus.classList.remove('synced', 'syncing', 'error', 'just-synced');
+            syncStatus.classList.add('error');
+            syncText.textContent = 'Error';
+            syncTime.textContent = errorMessage || 'Sync failed';
+            break;
+    }
 }
+
+// Update sync time display with relative time
+function updateSyncTime() {
+    if (!lastSyncTime) return;
+
+    const syncTime = document.getElementById('sync-time');
+    const now = new Date();
+    const diffMs = now - lastSyncTime;
+    const diffSec = Math.floor(diffMs / 1000);
+    const diffMin = Math.floor(diffSec / 60);
+    const diffHour = Math.floor(diffMin / 60);
+
+    if (diffSec < 10) {
+        syncTime.textContent = 'Just now';
+    } else if (diffSec < 60) {
+        syncTime.textContent = `${diffSec} seconds ago`;
+    } else if (diffMin < 60) {
+        syncTime.textContent = `${diffMin} minute${diffMin > 1 ? 's' : ''} ago`;
+    } else {
+        syncTime.textContent = `${diffHour} hour${diffHour > 1 ? 's' : ''} ago`;
+    }
+}
+
+// Update sync time every 10 seconds
+setInterval(updateSyncTime, 10000);
 
 // Utility function for API calls
 async function apiCall(endpoint, options = {}) {
@@ -302,68 +385,6 @@ window.api = {
     call: apiCall,
 };
 
-// Render modal notes list
-function renderModalNotesList() {
-    const notesList = document.getElementById('modal-notes-list');
-    notesList.innerHTML = '';
-
-    currentNotes.forEach((note, index) => {
-        const item = document.createElement('div');
-        item.className = 'note-item-wrapper';
-
-        const indentLevel = note.indent || 0;
-
-        // Create tree structure
-        let treeHTML = '';
-        for (let i = 0; i < indentLevel; i++) {
-            treeHTML += '<span class="tree-indent"></span>';
-        }
-        if (indentLevel > 0) {
-            treeHTML += '<span class="tree-branch">└─</span>';
-        }
-
-        item.innerHTML = `
-            <div class="note-tree-modal">${treeHTML}</div>
-            <div class="note-item">
-                <button type="button" class="btn-indent" onclick="indentNote(${index}, -1)" ${note.indent === 0 ? 'disabled' : ''}>&larr;</button>
-                <button type="button" class="btn-indent" onclick="indentNote(${index}, 1)">&rarr;</button>
-                <span class="note-text">${note.text}</span>
-                <button type="button" class="btn-remove" onclick="removeModalNote(${index})">&times;</button>
-            </div>
-        `;
-        notesList.appendChild(item);
-    });
-}
-
-// Add note in modal
-function addModalNote() {
-    const input = document.getElementById('modal-note-input');
-    const text = input.value.trim();
-
-    if (!text) {
-        showStatus('Note text is required', 'error');
-        return;
-    }
-
-    currentNotes.push({ text, indent: 0 });
-    renderModalNotesList();
-
-    input.value = '';
-}
-
-// Remove note from modal
-function removeModalNote(index) {
-    currentNotes.splice(index, 1);
-    renderModalNotesList();
-}
-
-// Indent/outdent note
-function indentNote(index, direction) {
-    const note = currentNotes[index];
-    const newIndent = Math.max(0, (note.indent || 0) + direction);
-    currentNotes[index].indent = newIndent;
-    renderModalNotesList();
-}
 
 // Save context name when editing inline
 async function saveContextName() {
@@ -395,12 +416,12 @@ async function saveContextName() {
                 contexts[index] = result;
             }
             renderContextCards();
-            showStatus('Context name updated!', 'success');
+            updateSyncStatus('synced');
         } else {
             throw new Error('Failed to update context name');
         }
     } catch (error) {
-        showStatus(`Error: ${error.message}`, 'error');
+        updateSyncStatus('error', error.message);
         contextName.textContent = context.name; // Revert on error
     }
 }
@@ -413,54 +434,202 @@ function renderNotesList() {
     const notesList = document.getElementById('notes-list');
     notesList.innerHTML = '';
 
-    (context.notes || []).forEach((note, index) => {
-        const item = document.createElement('div');
-        item.className = 'note-item-wrapper';
+    // Ensure notes is an array of note objects
+    const notes = context.notes || [];
 
-        const indentLevel = note.indent || 0;
+    notes.forEach((note, index) => {
+        const noteBox = document.createElement('div');
+        noteBox.className = 'note-box';
+        noteBox.draggable = true;
+        noteBox.dataset.index = index;
 
-        // Create tree structure
-        let treeHTML = '';
-        for (let i = 0; i < indentLevel; i++) {
-            treeHTML += '<span class="tree-indent"></span>';
-        }
-        if (indentLevel > 0) {
-            treeHTML += '<span class="tree-branch">└─</span>';
-        }
+        // Drag and drop events
+        noteBox.addEventListener('dragstart', handleDragStart);
+        noteBox.addEventListener('dragend', handleDragEnd);
+        noteBox.addEventListener('dragover', handleDragOver);
+        noteBox.addEventListener('drop', handleDrop);
+        noteBox.addEventListener('dragenter', handleDragEnter);
+        noteBox.addEventListener('dragleave', handleDragLeave);
 
-        item.innerHTML = `
-            <div class="note-tree">${treeHTML}</div>
-            <div class="note-item-inline">
-                <button type="button" class="btn-indent-inline" onclick="indentNoteInline(${index}, -1)" ${note.indent === 0 ? 'disabled' : ''}>&larr;</button>
-                <button type="button" class="btn-indent-inline" onclick="indentNoteInline(${index}, 1)">&rarr;</button>
-                <span class="note-text-inline">${note.text}</span>
-                <button type="button" class="btn-remove-inline" onclick="removeNote(${index})">&times;</button>
-            </div>
-        `;
-        notesList.appendChild(item);
+        // Title input
+        const titleInput = document.createElement('input');
+        titleInput.className = 'note-title';
+        titleInput.type = 'text';
+        titleInput.value = typeof note === 'object' ? (note.title || '') : '';
+        titleInput.placeholder = 'Note Title';
+
+        // Prevent drag when interacting with input
+        titleInput.addEventListener('mousedown', (e) => {
+            noteBox.draggable = false;
+        });
+        titleInput.addEventListener('mouseup', (e) => {
+            noteBox.draggable = true;
+        });
+
+        // Auto-save title on blur
+        titleInput.addEventListener('blur', () => {
+            updateNoteTitle(index, titleInput.value);
+        });
+
+        // Content textarea
+        const textarea = document.createElement('textarea');
+        textarea.className = 'note-textarea';
+        textarea.value = typeof note === 'object' ? (note.content || '') : (typeof note === 'string' ? note : '');
+        textarea.placeholder = 'Type your note here...';
+
+        // Prevent drag when interacting with textarea
+        textarea.addEventListener('mousedown', (e) => {
+            noteBox.draggable = false;
+        });
+        textarea.addEventListener('mouseup', (e) => {
+            noteBox.draggable = true;
+        });
+
+        // Auto-save content on blur
+        textarea.addEventListener('blur', () => {
+            updateNoteContent(index, textarea.value);
+        });
+
+        // Remove button
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'btn-remove-inline';
+        removeBtn.innerHTML = '&times;';
+        removeBtn.onclick = () => removeNote(index);
+
+        noteBox.appendChild(titleInput);
+        noteBox.appendChild(textarea);
+        noteBox.appendChild(removeBtn);
+        notesList.appendChild(noteBox);
     });
+
+    // Add "Add Note" button
+    const addBtn = document.createElement('button');
+    addBtn.className = 'add-note-btn';
+    addBtn.textContent = '+ Add Note';
+    addBtn.onclick = addNote;
+    notesList.appendChild(addBtn);
+}
+
+// Drag and drop handlers
+let draggedElement = null;
+let draggedIndex = null;
+
+function handleDragStart(e) {
+    draggedElement = this;
+    draggedIndex = parseInt(this.dataset.index);
+    this.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', draggedIndex);
+}
+
+function handleDragEnd(e) {
+    this.classList.remove('dragging');
+    document.querySelectorAll('.note-box').forEach(box => {
+        box.classList.remove('drag-over');
+    });
+    draggedElement = null;
+    draggedIndex = null;
+}
+
+function handleDragOver(e) {
+    if (e.preventDefault) {
+        e.preventDefault();
+    }
+    e.dataTransfer.dropEffect = 'move';
+    return false;
+}
+
+function handleDragEnter(e) {
+    if (this !== draggedElement && this.classList.contains('note-box')) {
+        this.classList.add('drag-over');
+    }
+}
+
+function handleDragLeave(e) {
+    this.classList.remove('drag-over');
+}
+
+async function handleDrop(e) {
+    if (e.stopPropagation) {
+        e.stopPropagation();
+    }
+    if (e.preventDefault) {
+        e.preventDefault();
+    }
+
+    this.classList.remove('drag-over');
+
+    if (draggedElement !== this && this.classList.contains('note-box')) {
+        const context = contexts.find(c => c.id === currentContextId);
+        if (!context) return false;
+
+        const fromIndex = draggedIndex;
+        const toIndex = parseInt(this.dataset.index);
+
+        // Reorder notes array
+        const notes = [...context.notes];
+        const [movedNote] = notes.splice(fromIndex, 1);
+        notes.splice(toIndex, 0, movedNote);
+
+        // Update context
+        context.notes = notes;
+
+        // Update on server and re-render
+        await updateContextOnServer(context);
+        renderNotesList();
+        renderContextCards();
+    }
+
+    return false;
 }
 
 // Add note inline
 async function addNote() {
-    const input = document.getElementById('note-input');
-    const text = input.value.trim();
-
-    if (!text) {
-        showStatus('Note text is required', 'error');
-        return;
-    }
-
     const context = contexts.find(c => c.id === currentContextId);
     if (!context) return;
 
     context.notes = context.notes || [];
-    context.notes.push({ text, indent: 0 });
+    context.notes.push({ title: '', content: '' });
 
     await updateContextOnServer(context);
-
-    input.value = '';
     renderNotesList();
+    renderContextCards();
+
+    // Focus the newly added title input
+    const notesList = document.getElementById('notes-list');
+    const titleInputs = notesList.querySelectorAll('.note-title');
+    if (titleInputs.length > 0) {
+        titleInputs[titleInputs.length - 1].focus();
+    }
+}
+
+// Update note title
+async function updateNoteTitle(index, title) {
+    const context = contexts.find(c => c.id === currentContextId);
+    if (!context) return;
+
+    // Ensure note is an object
+    if (typeof context.notes[index] !== 'object') {
+        context.notes[index] = { title: '', content: context.notes[index] || '' };
+    }
+
+    context.notes[index].title = title;
+    await updateContextOnServer(context);
+    renderContextCards();
+}
+
+// Update note content
+async function updateNoteContent(index, content) {
+    const context = contexts.find(c => c.id === currentContextId);
+    if (!context) return;
+
+    // Ensure note is an object
+    if (typeof context.notes[index] !== 'object') {
+        context.notes[index] = { title: '', content: '' };
+    }
+
+    context.notes[index].content = content;
+    await updateContextOnServer(context);
     renderContextCards();
 }
 
@@ -475,21 +644,10 @@ async function removeNote(index) {
     renderContextCards();
 }
 
-// Indent/outdent note inline
-async function indentNoteInline(index, direction) {
-    const context = contexts.find(c => c.id === currentContextId);
-    if (!context) return;
-
-    const note = context.notes[index];
-    const newIndent = Math.max(0, (note.indent || 0) + direction);
-    context.notes[index].indent = newIndent;
-
-    await updateContextOnServer(context);
-    renderNotesList();
-}
-
 // Update context on server
 async function updateContextOnServer(context) {
+    updateSyncStatus('syncing');
+
     try {
         const response = await fetch(`/api/contexts/${context.id}`, {
             method: 'PUT',
@@ -503,22 +661,16 @@ async function updateContextOnServer(context) {
             if (index !== -1) {
                 contexts[index] = result;
             }
-            showStatus('Updated successfully!', 'success');
+            updateSyncStatus('synced');
         } else {
             throw new Error('Failed to update context');
         }
     } catch (error) {
-        showStatus(`Error: ${error.message}`, 'error');
+        updateSyncStatus('error', error.message);
     }
 }
 
 // Make functions globally accessible for inline onclick
 window.closeModal = closeModal;
-window.addModalNote = addModalNote;
-window.removeModalNote = removeModalNote;
-window.indentNote = indentNote;
-window.addNote = addNote;
-window.removeNote = removeNote;
-window.indentNoteInline = indentNoteInline;
 
 console.log('Vibro frontend initialized');
