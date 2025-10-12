@@ -100,7 +100,43 @@ func (c *Context) Validate() error {
 		return errors.New("context name too long (max 100 characters)")
 	}
 
+	if c.Color != "" && !isValidColor(c.Color) {
+		return errors.New("invalid color (must be a valid color name or hex format)")
+	}
+
 	return nil
+}
+
+// isValidColor checks if a color is a valid color name or hex code
+func isValidColor(color string) bool {
+	// Valid color names
+	validColorNames := map[string]bool{
+		"purple":  true,
+		"blue":    true,
+		"green":   true,
+		"orange":  true,
+		"red":     true,
+		"pink":    true,
+		"teal":    true,
+		"indigo":  true,
+		"cyan":    true,
+		"emerald": true,
+		"amber":   true,
+		"rose":    true,
+		"violet":  true,
+		"lime":    true,
+		"sky":     true,
+		"fuchsia": true,
+		"slate":   true,
+	}
+
+	// Check if it's a valid color name
+	if validColorNames[strings.ToLower(color)] {
+		return true
+	}
+
+	// Check if it's a valid hex color
+	return isValidHexColor(color)
 }
 
 // Validate validates an Item

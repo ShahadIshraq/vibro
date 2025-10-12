@@ -49,11 +49,24 @@ func TestContextValidate(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "invalid color",
+			name: "valid color name",
 			context: Context{
 				ID:        "123",
 				Name:      "Work",
 				Color:     "red",
+				Icon:      "💼",
+				Items:     []Item{},
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid color",
+			context: Context{
+				ID:        "123",
+				Name:      "Work",
+				Color:     "notacolor",
 				Icon:      "💼",
 				Items:     []Item{},
 				CreatedAt: time.Now(),

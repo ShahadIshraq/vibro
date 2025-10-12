@@ -93,6 +93,19 @@ func UpdateContext(store storage.Storage) http.HandlerFunc {
 			return
 		}
 
+		// Validate input
+		createReq := &models.CreateContextRequest{
+			Name:        req.Name,
+			Color:       req.Color,
+			Icon:        req.Icon,
+			Description: req.Description,
+			Notes:       req.Notes,
+		}
+		if err := utils.ValidateCreateContext(createReq); err != nil {
+			utils.RespondError(w, http.StatusBadRequest, err.Error(), nil)
+			return
+		}
+
 		// Get existing context
 		ctx, err := store.GetContextByID(id)
 		if err != nil {
