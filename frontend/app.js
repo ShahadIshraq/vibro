@@ -6,6 +6,8 @@ let editingContextId = null;
 let lastSyncTime = null;
 let syncStartTime = null;
 let pendingSyncComplete = null;
+let autoRefreshInterval = null;
+let serverContexts = []; // Track server state for conflict detection
 
 // Color gradient mapping
 const colorGradients = {
@@ -32,28 +34,75 @@ const colorGradients = {
 document.addEventListener('DOMContentLoaded', async () => {
     await loadContexts();
     setupEventListeners();
+    startAutoRefresh();
 });
 
 // Load contexts from API
-async function loadContexts() {
+async function loadContexts(silent = false) {
     try {
+        if (!silent) {
+            updateSyncStatus('syncing');
+        }
+
         const response = await fetch('/api/contexts');
 
         if (response.ok) {
-            contexts = await response.json();
+            const newContexts = await response.json();
+
+            // Store server state for conflict detection
+            serverContexts = JSON.parse(JSON.stringify(newContexts));
+
+            // Update contexts
+            contexts = newContexts;
             renderContextCards();
 
-            // Select first context if available
-            if (contexts.length > 0) {
+            // Select first context if available and none selected
+            if (contexts.length > 0 && !currentContextId) {
                 selectContext(contexts[0].id);
+            } else if (currentContextId) {
+                // Refresh current context view
+                const currentContext = contexts.find(c => c.id === currentContextId);
+                if (currentContext) {
+                    renderNotesList();
+                }
             }
 
-            updateSyncStatus('synced');
+            if (!silent) {
+                updateSyncStatus('synced');
+            }
         } else {
             throw new Error(`HTTP ${response.status}`);
         }
     } catch (error) {
-        updateSyncStatus('error', `Backend connection failed: ${error.message}`);
+        if (!silent) {
+            updateSyncStatus('error', `Backend connection failed: ${error.message}`);
+        }
+    }
+}
+
+// Refresh contexts from server (fetch-only, no writes)
+async function refreshContexts() {
+    await loadContexts(false);
+}
+
+// Start auto-refresh interval
+function startAutoRefresh() {
+    // Clear any existing interval
+    if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+    }
+
+    // Refresh every 10 seconds
+    autoRefreshInterval = setInterval(async () => {
+        await loadContexts(true); // Silent refresh
+    }, 10000);
+}
+
+// Stop auto-refresh interval
+function stopAutoRefresh() {
+    if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+        autoRefreshInterval = null;
     }
 }
 
@@ -135,6 +184,16 @@ function setupEventListeners() {
 
     const deleteBtn = document.getElementById('delete-context-btn');
     deleteBtn.addEventListener('click', handleDeleteContext);
+
+    // Refresh button
+    const refreshBtn = document.getElementById('refresh-btn');
+    refreshBtn.addEventListener('click', async () => {
+        refreshBtn.classList.add('spinning');
+        await refreshContexts();
+        setTimeout(() => {
+            refreshBtn.classList.remove('spinning');
+        }, 500);
+    });
 
     // Close modal when clicking outside
     const modal = document.getElementById('context-modal');
@@ -796,8 +855,117 @@ async function removeNote(index) {
     renderContextCards();
 }
 
+// Check for conflicts before saving
+async function checkForConflicts(contextId) {
+    try {
+        // Fetch latest server state
+        const response = await fetch(`/api/contexts/${contextId}`);
+        if (!response.ok) {
+            return null;
+        }
+
+        const serverContext = await response.json();
+        const localContext = contexts.find(c => c.id === contextId);
+        const cachedServerContext = serverContexts.find(c => c.id === contextId);
+
+        if (!localContext || !cachedServerContext) {
+            return null;
+        }
+
+        // Check if server version differs from our cached version
+        const serverChanged = JSON.stringify(serverContext) !== JSON.stringify(cachedServerContext);
+
+        if (serverChanged) {
+            return {
+                serverContext,
+                localContext,
+                hasConflict: true
+            };
+        }
+
+        return null;
+    } catch (error) {
+        console.error('Error checking for conflicts:', error);
+        return null;
+    }
+}
+
+// Show conflict warning dialog
+function showConflictWarning(conflictInfo) {
+    return new Promise((resolve) => {
+        const modal = document.createElement('div');
+        modal.className = 'modal active';
+        modal.style.zIndex = '2000';
+
+        modal.innerHTML = `
+            <div class="modal-content" style="max-width: 600px;">
+                <div class="modal-header">
+                    <h3 style="color: #e53e3e;">⚠️ Conflict Detected</h3>
+                </div>
+                <div class="modal-body">
+                    <p style="margin-bottom: 16px; color: #2d3748; line-height: 1.6;">
+                        The context has been modified on the server since you last loaded it.
+                        If you continue, your changes will overwrite the server version.
+                    </p>
+                    <p style="margin-bottom: 16px; color: #4a5568; font-size: 0.9rem;">
+                        <strong>Server version:</strong> ${conflictInfo.serverContext.notes?.length || 0} notes<br>
+                        <strong>Your version:</strong> ${conflictInfo.localContext.notes?.length || 0} notes
+                    </p>
+                    <div class="form-actions" style="justify-content: center; gap: 16px;">
+                        <button class="btn btn-secondary" id="conflict-cancel">Cancel</button>
+                        <button class="btn btn-primary" id="conflict-reload">Reload from Server</button>
+                        <button class="btn btn-danger" id="conflict-overwrite">Overwrite Server</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        document.getElementById('conflict-cancel').onclick = () => {
+            document.body.removeChild(modal);
+            resolve('cancel');
+        };
+
+        document.getElementById('conflict-reload').onclick = () => {
+            document.body.removeChild(modal);
+            resolve('reload');
+        };
+
+        document.getElementById('conflict-overwrite').onclick = () => {
+            document.body.removeChild(modal);
+            resolve('overwrite');
+        };
+
+        // Close on background click
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                document.body.removeChild(modal);
+                resolve('cancel');
+            }
+        });
+    });
+}
+
 // Update context on server
-async function updateContextOnServer(context) {
+async function updateContextOnServer(context, skipConflictCheck = false) {
+    // Check for conflicts before saving
+    if (!skipConflictCheck) {
+        const conflictInfo = await checkForConflicts(context.id);
+        if (conflictInfo) {
+            const userChoice = await showConflictWarning(conflictInfo);
+
+            if (userChoice === 'cancel') {
+                return;
+            } else if (userChoice === 'reload') {
+                // Reload from server
+                await loadContexts(false);
+                return;
+            }
+            // If 'overwrite', proceed with save
+        }
+    }
+
     updateSyncStatus('syncing');
 
     try {
@@ -813,6 +981,13 @@ async function updateContextOnServer(context) {
             if (index !== -1) {
                 contexts[index] = result;
             }
+
+            // Update server cache
+            const serverIndex = serverContexts.findIndex(c => c.id === context.id);
+            if (serverIndex !== -1) {
+                serverContexts[serverIndex] = JSON.parse(JSON.stringify(result));
+            }
+
             updateSyncStatus('synced');
         } else {
             throw new Error('Failed to update context');

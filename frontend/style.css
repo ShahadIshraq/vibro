@@ -410,12 +410,52 @@ body {
     transform: rotate(90deg);
 }
 
-/* Sync status indicator */
-.sync-status {
+/* Sync controls container */
+.sync-controls {
     position: fixed;
     top: 20px;
     right: 20px;
     z-index: 1001;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Refresh button */
+.refresh-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1),
+                inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.refresh-btn:hover {
+    background: rgba(255, 255, 255, 0.25);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.15),
+                inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    transform: scale(1.05);
+}
+
+.refresh-btn:active {
+    transform: scale(0.95);
+}
+
+.refresh-btn.spinning svg {
+    animation: rotate 1s linear infinite;
+}
+
+/* Sync status indicator */
+.sync-status {
     display: inline-flex;
     align-items: center;
     gap: 8px;
