@@ -47,7 +47,7 @@ body {
 /* Full view context information */
 #context-view {
     flex: 1;
-    padding: 60px 60px 140px 60px;
+    padding: 60px 60px 160px 60px;
     overflow-y: auto;
     background: var(--gradient-purple);
     color: white;
@@ -239,15 +239,17 @@ body {
     display: flex;
     gap: 12px;
     padding: 20px 24px;
-    background: transparent;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.15), transparent);
+    backdrop-filter: blur(10px);
     overflow-x: auto;
     align-items: center;
     justify-content: center;
-    position: absolute;
+    position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
     pointer-events: none;
+    z-index: 100;
 }
 
 #cards-container {
@@ -347,6 +349,19 @@ body {
     font-size: 0.75rem;
     color: rgba(255, 255, 255, 0.9);
     font-weight: 500;
+}
+
+/* Drag states for context cards */
+.context-card.dragging {
+    opacity: 0.5;
+    transform: scale(0.95);
+    cursor: grabbing;
+}
+
+.context-card.drag-over {
+    border: 2px solid rgba(255, 255, 255, 0.9);
+    transform: translateY(-8px) scale(1.05);
+    box-shadow: 0 12px 40px rgba(102, 126, 234, 0.6);
 }
 
 /* Add context button */

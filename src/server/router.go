@@ -11,6 +11,7 @@ func (s *Server) setupRouter() http.Handler {
 	// API routes (most specific, handled first)
 	mux.HandleFunc("GET /api/contexts", handlers.GetContexts(s.storage))
 	mux.HandleFunc("POST /api/contexts", handlers.CreateContext(s.storage))
+	mux.HandleFunc("POST /api/contexts/reorder", handlers.ReorderContexts(s.storage))
 	mux.HandleFunc("GET /api/contexts/{id}", handlers.GetContext(s.storage))
 	mux.HandleFunc("PUT /api/contexts/{id}", handlers.UpdateContext(s.storage))
 	mux.HandleFunc("DELETE /api/contexts/{id}", handlers.DeleteContext(s.storage))

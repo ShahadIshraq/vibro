@@ -151,3 +151,54 @@ func DeleteContext(store storage.Storage) http.HandlerFunc {
 		})
 	}
 }
+
+// ReorderContexts updates the order of contexts
+func ReorderContexts(store storage.Storage) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Order []string `json:"order"`
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			utils.RespondError(w, http.StatusBadRequest, "Invalid request body", err)
+			return
+		}
+
+		if len(req.Order) == 0 {
+			utils.RespondError(w, http.StatusBadRequest, "Order array cannot be empty", nil)
+			return
+		}
+
+		// Get all contexts
+		contexts, err := store.GetAllContexts()
+		if err != nil {
+			utils.RespondError(w, http.StatusInternalServerError, "Failed to fetch contexts", err)
+			return
+		}
+
+		// Create a map for quick context lookup
+		contextMap := make(map[string]*models.Context)
+		for i := range contexts {
+			contextMap[contexts[i].ID] = &contexts[i]
+		}
+
+		// Reorder contexts based on the provided order
+		reorderedContexts := make([]models.Context, 0, len(req.Order))
+		for _, id := range req.Order {
+			if ctx, exists := contextMap[id]; exists {
+				reorderedContexts = append(reorderedContexts, *ctx)
+			}
+		}
+
+		// Update the order in storage
+		if err := store.ReorderContexts(reorderedContexts); err != nil {
+			utils.RespondError(w, http.StatusInternalServerError, "Failed to reorder contexts", err)
+			return
+		}
+
+		utils.RespondJSON(w, http.StatusOK, models.SuccessResponse{
+			Success: true,
+			Message: "Contexts reordered successfully",
+		})
+	}
+}

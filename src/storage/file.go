@@ -267,6 +267,18 @@ func (s *JSONStorage) DeleteItem(id string) error {
 	return errors.New("item not found")
 }
 
+// ReorderContexts updates the order of contexts and saves to disk
+func (s *JSONStorage) ReorderContexts(contexts []models.Context) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Replace the contexts array with the reordered one
+	s.contexts = contexts
+
+	// Save to disk
+	return s.save()
+}
+
 // copyFile copies a file from src to dst
 func copyFile(src, dst string) error {
 	data, err := os.ReadFile(src)

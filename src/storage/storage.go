@@ -10,6 +10,7 @@ type Storage interface {
 	CreateContext(ctx *models.Context) error
 	UpdateContext(ctx *models.Context) error
 	DeleteContext(id string) error
+	ReorderContexts(contexts []models.Context) error
 
 	// Item operations
 	CreateItem(item *models.Item) error
