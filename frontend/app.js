@@ -9,6 +9,13 @@ let pendingSyncComplete = null;
 let autoRefreshInterval = null;
 let serverContexts = []; // Track server state for conflict detection
 
+// Editing state tracking for auto-refresh pause
+let isUserEditing = false;
+let editingTimeout = null;
+let autoSaveTimeout = null;
+const IDLE_DELAY = 2000; // 2 seconds of no typing before considering user idle
+const AUTO_SAVE_DELAY = 1500; // 1.5 seconds after typing stops before auto-saving
+
 // Color gradient mapping
 const colorGradients = {
     purple: 'var(--gradient-purple)',
@@ -44,7 +51,14 @@ async function loadContexts(silent = false) {
             updateSyncStatus('syncing');
         }
 
-        const response = await fetch('/api/contexts');
+        const response = await fetch('/api/contexts', {
+            method: 'GET',
+            cache: 'no-cache',
+            headers: {
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache'
+            }
+        });
 
         if (response.ok) {
             const newContexts = await response.json();
@@ -74,6 +88,7 @@ async function loadContexts(silent = false) {
             throw new Error(`HTTP ${response.status}`);
         }
     } catch (error) {
+        console.error('loadContexts error:', error);
         if (!silent) {
             updateSyncStatus('error', `Backend connection failed: ${error.message}`);
         }
@@ -92,10 +107,22 @@ function startAutoRefresh() {
         clearInterval(autoRefreshInterval);
     }
 
-    // Refresh every 10 seconds
+    // Refresh every 5 seconds
     autoRefreshInterval = setInterval(async () => {
-        await loadContexts(true); // Silent refresh
-    }, 10000);
+        // Skip refresh if user is actively editing
+        if (isUserEditing) {
+            console.log('Auto-refresh skipped - user is editing');
+            return;
+        }
+
+        try {
+            await loadContexts(true); // Silent refresh
+        } catch (error) {
+            console.error('Auto-refresh error:', error);
+        }
+    }, 5000);
+
+    console.log('Auto-refresh started (5 second interval)');
 }
 
 // Stop auto-refresh interval
@@ -106,15 +133,50 @@ function stopAutoRefresh() {
     }
 }
 
+// Mark that user started editing (pauses auto-refresh)
+function setUserEditing() {
+    if (!isUserEditing) {
+        isUserEditing = true;
+        console.log('User started editing - auto-refresh paused');
+    }
+
+    // Clear existing idle timeout
+    if (editingTimeout) {
+        clearTimeout(editingTimeout);
+    }
+
+    // Set new idle timeout - resume auto-refresh after idle period
+    editingTimeout = setTimeout(() => {
+        isUserEditing = false;
+        console.log('User idle - auto-refresh resumed');
+    }, IDLE_DELAY);
+}
+
+// Debounced auto-save function
+function scheduleAutoSave(saveFunction) {
+    // Clear existing auto-save timeout
+    if (autoSaveTimeout) {
+        clearTimeout(autoSaveTimeout);
+    }
+
+    // Schedule new auto-save
+    autoSaveTimeout = setTimeout(() => {
+        console.log('Auto-saving changes...');
+        saveFunction();
+    }, AUTO_SAVE_DELAY);
+}
+
 // Render context cards at the bottom
 function renderContextCards() {
     const container = document.getElementById('cards-container');
     container.innerHTML = '';
 
-    contexts.forEach(context => {
+    contexts.forEach((context, index) => {
         const card = document.createElement('div');
         card.className = 'context-card';
         card.dataset.contextId = context.id;
+        card.dataset.cardIndex = index;
+        card.draggable = true;
 
         // Apply color class
         const color = context.color || 'purple';
@@ -138,6 +200,14 @@ function renderContextCards() {
             e.preventDefault();
             openEditContextModal(context.id);
         });
+
+        // Drag and drop events for card reordering
+        card.addEventListener('dragstart', handleCardDragStart);
+        card.addEventListener('dragend', handleCardDragEnd);
+        card.addEventListener('dragover', handleCardDragOver);
+        card.addEventListener('drop', handleCardDrop);
+        card.addEventListener('dragenter', handleCardDragEnter);
+        card.addEventListener('dragleave', handleCardDragLeave);
 
         container.appendChild(card);
     });
@@ -185,6 +255,13 @@ function setupEventListeners() {
     const deleteBtn = document.getElementById('delete-context-btn');
     deleteBtn.addEventListener('click', handleDeleteContext);
 
+    // Track editing in modal form inputs
+    const nameInput = document.getElementById('context-name-input');
+    const descInput = document.getElementById('context-description-input');
+
+    nameInput.addEventListener('input', () => setUserEditing());
+    descInput.addEventListener('input', () => setUserEditing());
+
     // Refresh button
     const refreshBtn = document.getElementById('refresh-btn');
     refreshBtn.addEventListener('click', async () => {
@@ -213,7 +290,22 @@ function setupEventListeners() {
 
     // Context name editing
     const contextName = document.getElementById('context-name');
-    contextName.addEventListener('blur', saveContextName);
+
+    // Track editing state on input
+    contextName.addEventListener('input', () => {
+        setUserEditing();
+        scheduleAutoSave(saveContextName);
+    });
+
+    contextName.addEventListener('blur', () => {
+        // Cancel any pending auto-save and save immediately
+        if (autoSaveTimeout) {
+            clearTimeout(autoSaveTimeout);
+            autoSaveTimeout = null;
+        }
+        saveContextName();
+    });
+
     contextName.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
@@ -677,8 +769,19 @@ function renderNotesList() {
             noteBox.draggable = true;
         });
 
+        // Track editing state on input
+        titleInput.addEventListener('input', () => {
+            setUserEditing();
+            scheduleAutoSave(() => updateNoteTitle(index, titleInput.value));
+        });
+
         // Auto-save title on blur
         titleInput.addEventListener('blur', () => {
+            // Cancel any pending auto-save and save immediately
+            if (autoSaveTimeout) {
+                clearTimeout(autoSaveTimeout);
+                autoSaveTimeout = null;
+            }
             updateNoteTitle(index, titleInput.value);
         });
 
@@ -696,8 +799,19 @@ function renderNotesList() {
             noteBox.draggable = true;
         });
 
+        // Track editing state on input
+        textarea.addEventListener('input', () => {
+            setUserEditing();
+            scheduleAutoSave(() => updateNoteContent(index, textarea.value));
+        });
+
         // Auto-save content on blur
         textarea.addEventListener('blur', () => {
+            // Cancel any pending auto-save and save immediately
+            if (autoSaveTimeout) {
+                clearTimeout(autoSaveTimeout);
+                autoSaveTimeout = null;
+            }
             updateNoteContent(index, textarea.value);
         });
 
@@ -721,7 +835,7 @@ function renderNotesList() {
     notesList.appendChild(addBtn);
 }
 
-// Drag and drop handlers
+// Drag and drop handlers for notes
 let draggedElement = null;
 let draggedIndex = null;
 
@@ -792,6 +906,104 @@ async function handleDrop(e) {
     }
 
     return false;
+}
+
+// Drag and drop handlers for context cards
+let draggedCard = null;
+let draggedCardIndex = null;
+
+function handleCardDragStart(e) {
+    draggedCard = this;
+    draggedCardIndex = parseInt(this.dataset.cardIndex);
+    this.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', draggedCardIndex);
+}
+
+function handleCardDragEnd(e) {
+    this.classList.remove('dragging');
+    document.querySelectorAll('.context-card').forEach(card => {
+        card.classList.remove('drag-over');
+    });
+    draggedCard = null;
+    draggedCardIndex = null;
+}
+
+function handleCardDragOver(e) {
+    if (e.preventDefault) {
+        e.preventDefault();
+    }
+    e.dataTransfer.dropEffect = 'move';
+    return false;
+}
+
+function handleCardDragEnter(e) {
+    if (this !== draggedCard && this.classList.contains('context-card')) {
+        this.classList.add('drag-over');
+    }
+}
+
+function handleCardDragLeave(e) {
+    this.classList.remove('drag-over');
+}
+
+async function handleCardDrop(e) {
+    if (e.stopPropagation) {
+        e.stopPropagation();
+    }
+    if (e.preventDefault) {
+        e.preventDefault();
+    }
+
+    this.classList.remove('drag-over');
+
+    if (draggedCard !== this && this.classList.contains('context-card')) {
+        const fromIndex = draggedCardIndex;
+        const toIndex = parseInt(this.dataset.cardIndex);
+
+        // Reorder contexts array
+        const reorderedContexts = [...contexts];
+        const [movedContext] = reorderedContexts.splice(fromIndex, 1);
+        reorderedContexts.splice(toIndex, 0, movedContext);
+
+        // Update contexts array
+        contexts = reorderedContexts;
+
+        // Persist the reordered contexts to backend
+        await saveContextsOrder();
+
+        // Re-render cards
+        renderContextCards();
+    }
+
+    return false;
+}
+
+// Save contexts order to backend
+async function saveContextsOrder() {
+    try {
+        updateSyncStatus('syncing');
+
+        // Send the reordered context IDs to backend
+        const contextIds = contexts.map(c => c.id);
+
+        const response = await fetch('/api/contexts/reorder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ order: contextIds })
+        });
+
+        if (response.ok) {
+            // Update server cache with new order
+            serverContexts = JSON.parse(JSON.stringify(contexts));
+            updateSyncStatus('synced');
+        } else {
+            throw new Error('Failed to save card order');
+        }
+    } catch (error) {
+        console.error('Error saving card order:', error);
+        updateSyncStatus('error', error.message);
+    }
 }
 
 // Add note inline
