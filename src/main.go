@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	serverAddr = "localhost:8080"
+	serverAddr = "0.0.0.0:8080"
 	dataFile   = "./data/contexts.json"
 	uploadsDir = "./uploads"
 )
