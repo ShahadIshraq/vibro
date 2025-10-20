@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -13,12 +15,18 @@ import (
 )
 
 const (
-	serverAddr = "0.0.0.0:8080"
 	dataFile   = "./data/contexts.json"
 	uploadsDir = "./uploads"
 )
 
 func main() {
+	// Parse command line flags
+	port := flag.Int("port", 8080, "Port to run the server on")
+	flag.Parse()
+
+	// Construct server address
+	serverAddr := fmt.Sprintf("0.0.0.0:%d", *port)
+
 	// Initialize storage
 	if err := initDirectories(); err != nil {
 		log.Fatalf("Failed to initialize directories: %v", err)

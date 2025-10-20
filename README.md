@@ -9,9 +9,12 @@ Requirements: Go 1.24+
 ```bash
 go build -o vibro ./src
 ./vibro
+
+# Or run on a custom port
+./vibro --port 3000
 ```
 
-Open http://localhost:8080
+Open http://localhost:8080 (or your custom port)
 
 ## API
 
@@ -65,8 +68,18 @@ go test ./src/...
 
 ## Configuration
 
-Edit `src/main.go`:
-- Server address (default: localhost:8080)
+### Command-line flags
+
+- `--port` - Port to run the server on (default: 8080)
+
+Example:
+```bash
+./vibro --port 3000
+```
+
+### File paths
+
+Edit constants in `src/main.go`:
 - Data file location (default: ./data/contexts.json)
 - Upload directory (default: ./uploads)
 
@@ -102,6 +115,9 @@ Run the binary from the directory containing `frontend/`:
 
 ```bash
 ./vibro
+
+# Or specify a custom port
+./vibro --port 8000
 ```
 
 The app will create `data/` and `uploads/` directories automatically on first run.
